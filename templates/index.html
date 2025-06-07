@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Activity Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fab fa-github"></i> GitHub Activity Monitor</h1>
+            <p class="subtitle">Real-time webhook event tracking</p>
+            <div class="info-bar">
+                <span id="last-updated">Last updated: Never</span>
+                <span id="refresh-indicator"></span>
+                <a href="/admin" class="admin-link"><i class="fas fa-cog"></i> Admin</a>
+            </div>
+        </header>
+        
+        <div class="event-filters">
+            <button class="filter-btn active" data-filter="all">All Events</button>
+            <button class="filter-btn" data-filter="PUSH">Push</button>
+            <button class="filter-btn" data-filter="PULL_REQUEST">Pull Requests</button>
+            <button class="filter-btn" data-filter="MERGE">Merges</button>
+        </div>
+        
+        <div id="event-container" class="event-container">
+            <!-- Events will be loaded here dynamically -->
+            <div class="loading">Loading events...</div>
+        </div>
+    </div>
+
+    <script>
+        // Format timestamp to display in the required format
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const options = { 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+                timeZone: 'UTC'
+            };
+            return date.toLocaleString('en-US', options) + ' UTC';
+        }
+
+        // Format event message based on event type according to requirements
+        function formatEvent(event) {
+            const timestamp = formatTimestamp(event.timestamp);
+            switch(event.action) {
+                case 'PUSH':
+                    return `${event.author} pushed to ${event.to_branch} on ${timestamp}`;
+                case 'PULL_REQUEST':
+                    return `${event.author} submitted a pull request from ${event.from_branch} to ${event.to_branch} on ${timestamp}`;
+                case 'MERGE':
+                    return `${event.author} merged branch ${event.from_branch} to ${event.to_branch} on ${timestamp}`;
+                default:
+                    return '';
+            }
+        }
+
+        // Get icon class based on event type
+        function getEventIcon(eventType) {
+            switch(eventType) {
+                case 'PUSH': return 'fa-solid fa-code-commit';
+                case 'PULL_REQUEST': return 'fa-solid fa-code-pull-request';
+                case 'MERGE': return 'fa-solid fa-code-merge';
+                default: return 'fa-solid fa-circle-info';
+            }
+        }
+
+        // Update the last updated timestamp
+        function updateLastUpdated() {
+            const now = new Date();
+            document.getElementById('last-updated').textContent = 
+                `Last updated: ${now.toLocaleTimeString()}`;
+        }
+
+        // Show refresh indicator
+        function showRefreshIndicator() {
+            const indicator = document.getElementById('refresh-indicator');
+            indicator.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing...';
+            setTimeout(() => {
+                indicator.innerHTML = '';
+            }, 1000);
+        }
+
+        // Fetch events from the API
+        function fetchEvents(filterType = 'all') {
+            showRefreshIndicator();
+            
+            fetch('/api/events')
+                .then(response => response.json())
+                .then(events => {
+                    const container = document.getElementById('event-container');
+                    container.innerHTML = '';
+                    
+                    // Filter events if needed
+                    const filteredEvents = filterType === 'all' ? 
+                        events : 
+                        events.filter(event => event.action === filterType);
+                    
+                    if (filteredEvents.length === 0) {
+                        const emptyMessage = document.createElement('div');
+                        emptyMessage.className = 'empty-message';
+                        emptyMessage.innerHTML = `<i class="far fa-folder-open"></i><p>No ${filterType === 'all' ? '' : filterType.toLowerCase()} events found</p>`;
+                        container.appendChild(emptyMessage);
+                        return;
+                    }
+                    
+                    filteredEvents.forEach(event => {
+                        const eventElement = document.createElement('div');
+                        eventElement.className = `event-card ${event.action.toLowerCase()}`;
+                        
+                        const iconElement = document.createElement('div');
+                        iconElement.className = 'event-icon';
+                        iconElement.innerHTML = `<i class="${getEventIcon(event.action)}"></i>`;
+                        
+                        const contentElement = document.createElement('div');
+                        contentElement.className = 'event-content';
+                        contentElement.textContent = formatEvent(event);
+                        
+                        eventElement.appendChild(iconElement);
+                        eventElement.appendChild(contentElement);
+                        container.appendChild(eventElement);
+                    });
+                    
+                    updateLastUpdated();
+                })
+                .catch(error => {
+                    console.error('Error fetching events:', error);
+                    const container = document.getElementById('event-container');
+                    container.innerHTML = '<div class="error-message">Error loading events. Please try again later.</div>';
+                });
+        }
+
+        // Set up event listeners for filter buttons
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterButtons = document.querySelectorAll('.filter-btn');
+            
+            filterButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active class from all buttons
+                    filterButtons.forEach(btn => btn.classList.remove('active'));
+                    
+                    // Add active class to clicked button
+                    this.classList.add('active');
+                    
+                    // Get filter type and fetch events
+                    const filterType = this.getAttribute('data-filter');
+                    fetchEvents(filterType);
+                });
+            });
+            
+            // Initial fetch
+            fetchEvents();
+            
+            // Set up periodic refresh
+            setInterval(() => fetchEvents(document.querySelector('.filter-btn.active').getAttribute('data-filter')), 15000);
+        });
+    </script>
+</body>
+</html>

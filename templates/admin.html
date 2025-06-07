@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Webhook Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .admin-panel {
+            background-color: #21262d;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #30363d;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background-color: #2d333b;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #58a6ff;
+        }
+        
+        .stat-label {
+            margin-top: 5px;
+            color: #8b949e;
+        }
+        
+        .admin-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .admin-controls .search-box {
+            position: relative;
+            flex: 1;
+            max-width: 300px;
+            margin-left: auto;
+        }
+        
+        .admin-controls .search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 32px;
+            border-radius: 4px;
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+        }
+        
+        .admin-controls .search-box .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #8b949e;
+            font-size: 14px;
+        }
+        
+        .admin-btn {
+            background-color: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .admin-btn:hover {
+            background-color: #30363d;
+        }
+        
+        .admin-btn.danger {
+            background-color: #da3633;
+            color: white;
+            border-color: #da3633;
+        }
+        
+        .admin-btn.danger:hover {
+            background-color: #f85149;
+        }
+        
+        .event-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .event-table th,
+        .event-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        
+        .event-table th {
+            background-color: #2d333b;
+            color: #58a6ff;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
+        }
+        
+        .event-table tbody tr:hover {
+            background-color: rgba(56, 139, 253, 0.1);
+        }
+        
+        .event-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .event-table td {
+            position: relative;
+            transition: all 0.2s;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin: 0 -20px;
+            padding: 0 20px;
+        }
+        
+        .event-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .event-badge.push {
+            background-color: #238636;
+            color: #f0f6fc;
+        }
+        
+        .event-badge.pr {
+            background-color: #8957e5;
+            color: #f0f6fc;
+        }
+        
+        .event-badge.merge {
+            background-color: #1f6feb;
+            color: #f0f6fc;
+        }
+        
+        .branch-badge {
+            display: inline-flex;
+            align-items: center;
+            background-color: #21262d;
+            border-radius: 20px;
+            padding: 2px 10px;
+            font-size: 0.85em;
+            border: 1px solid #30363d;
+        }
+        
+        .branch-badge i {
+            margin-right: 5px;
+            font-size: 12px;
+        }
+        
+        .admin-form {
+            margin-top: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #c9d1d9;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            color: #c9d1d9;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+        }
+        
+        .modal-content {
+            background-color: #161b22;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            width: 50%;
+            max-width: 500px;
+        }
+        
+        .close-modal {
+            color: #8b949e;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close-modal:hover {
+            color: #c9d1d9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fab fa-github"></i> GitHub Webhook Admin</h1>
+            <p class="subtitle">Event Management Dashboard</p>
+        </header>
+        
+        <div class="admin-header">
+            <h2>Dashboard</h2>
+            <div>
+                <span id="last-updated">Last updated: Never</span>
+                <button class="admin-btn" onclick="fetchEvents()"><i class="fas fa-sync"></i> Refresh</button>
+            </div>
+        </div>
+        
+        <!-- Stats Section -->
+        <div class="admin-panel">
+            <h3>Event Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-events">0</div>
+                    <div class="stat-label">Total Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="push-events">0</div>
+                    <div class="stat-label">Push Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="pr-events">0</div>
+                    <div class="stat-label">Pull Request Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="merge-events">0</div>
+                    <div class="stat-label">Merge Events</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Events Table -->
+        <div class="admin-panel">
+            <h3><i class="fas fa-history"></i> Recent Events</h3>
+            <div class="admin-controls">
+                <button class="admin-btn" id="export-json"><i class="fas fa-download"></i> Export JSON</button>
+                <button class="admin-btn danger" id="clear-events"><i class="fas fa-trash"></i> Clear All Events</button>
+                <div class="search-box">
+                    <input type="text" id="event-search" placeholder="Search events...">
+                    <i class="fas fa-search search-icon"></i>
+                </div>
+            </div>
+            <div class="table-container">
+                <div class="table-container">
+                    <table class="event-table">
+                        <thead>
+                            <tr>
+                                <th>Request ID</th>
+                                <th>Author</th>
+                                <th>Action</th>
+                                <th>From Branch</th>
+                                <th>To Branch</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-table-body">
+                            <!-- Events will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-panel">
+            <h3>Test Webhook</h3>
+            <p>Simulate webhook events for testing without GitHub integration.</p>
+            <div class="admin-form">
+                <div class="form-group">
+                    <label for="event-type">Event Type</label>
+                    <select id="event-type">
+                        <option value="push">Push</option>
+                        <option value="pull_request_opened">Pull Request (Opened)</option>
+                        <option value="pull_request_merged">Pull Request (Merged)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="author-name">Author Name</label>
+                    <input type="text" id="author-name" value="TestUser">
+                </div>
+                <div class="form-group">
+                    <label for="to-branch">To Branch</label>
+                    <input type="text" id="to-branch" value="main">
+                </div>
+                <div class="form-group" id="from-branch-group" style="display:none;">
+                    <label for="from-branch">From Branch</label>
+                    <input type="text" id="from-branch" value="feature">
+                </div>
+                <button class="admin-btn" id="simulate-event"><i class="fas fa-play"></i> Simulate Event</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Confirm Delete Modal -->
+    <div id="delete-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Confirm Delete</h3>
+            <p>Are you sure you want to delete all events? This action cannot be undone.</p>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button class="admin-btn" id="cancel-delete">Cancel</button>
+                <button class="admin-btn danger" id="confirm-delete">Delete All</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Format timestamp for display
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+        
+        // Update the last updated timestamp
+        function updateLastUpdated() {
+            const now = new Date();
+            document.getElementById('last-updated').textContent = 
+                `Last updated: ${now.toLocaleTimeString()}`;
+        }
+        
+        // Fetch all events and update the UI
+        function fetchEvents() {
+            fetch('/api/events')
+                .then(response => response.json())
+                .then(events => {
+                    updateEventsTable(events);
+                    updateStats(events);
+                    updateLastUpdated();
+                })
+                .catch(error => {
+                    console.error('Error fetching events:', error);
+                });
+        }
+        
+        // Update the events table with enhanced styling
+        function updateEventsTable(events) {
+            const tableBody = document.getElementById('events-table-body');
+            tableBody.innerHTML = '';
+            
+            events.forEach(event => {
+                const row = document.createElement('tr');
+                
+                // Determine badge class for action type
+                let actionBadgeClass = '';
+                if (event.action === 'PUSH') actionBadgeClass = 'push';
+                else if (event.action === 'PULL_REQUEST') actionBadgeClass = 'pr';
+                else if (event.action === 'MERGE') actionBadgeClass = 'merge';
+                
+                // Format action with badge
+                const actionDisplay = `<span class="event-badge ${actionBadgeClass}">${event.action}</span>`;
+                
+                // Format branch displays with icons
+                const fromBranchDisplay = event.from_branch ? 
+                    `<span class="branch-badge"><i class="fas fa-code-branch"></i> ${event.from_branch}</span>` : 
+                    '-';
+                
+                const toBranchDisplay = 
+                    `<span class="branch-badge"><i class="fas fa-code-branch"></i> ${event.to_branch}</span>`;
+                
+                row.innerHTML = `
+                    <td><code>${event.request_id}</code></td>
+                    <td><strong>${event.author}</strong></td>
+                    <td>${actionDisplay}</td>
+                    <td>${fromBranchDisplay}</td>
+                    <td>${toBranchDisplay}</td>
+                    <td>${formatTimestamp(event.timestamp)}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Update statistics
+        function updateStats(events) {
+            document.getElementById('total-events').textContent = events.length;
+            
+            const pushEvents = events.filter(event => event.action === 'PUSH').length;
+            const prEvents = events.filter(event => event.action === 'PULL_REQUEST').length;
+            const mergeEvents = events.filter(event => event.action === 'MERGE').length;
+            
+            document.getElementById('push-events').textContent = pushEvents;
+            document.getElementById('pr-events').textContent = prEvents;
+            document.getElementById('merge-events').textContent = mergeEvents;
+        }
+        
+        // Export events as JSON
+        document.getElementById('export-json').addEventListener('click', function() {
+            fetch('/api/events')
+                .then(response => response.json())
+                .then(events => {
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(events, null, 2));
+                    const downloadAnchorNode = document.createElement('a');
+                    downloadAnchorNode.setAttribute("href", dataStr);
+                    downloadAnchorNode.setAttribute("download", "github_events.json");
+                    document.body.appendChild(downloadAnchorNode);
+                    downloadAnchorNode.click();
+                    downloadAnchorNode.remove();
+                });
+        });
+        
+        // Clear all events (show modal)
+        document.getElementById('clear-events').addEventListener('click', function() {
+            document.getElementById('delete-modal').style.display = 'block';
+        });
+        
+        // Cancel delete
+        document.getElementById('cancel-delete').addEventListener('click', function() {
+            document.getElementById('delete-modal').style.display = 'none';
+        });
+        
+        // Confirm delete
+        document.getElementById('confirm-delete').addEventListener('click', function() {
+            const adminKey = prompt("Enter admin key to confirm:");
+            
+            if (!adminKey) return;
+            
+            fetch('/api/clear', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Admin-Key': adminKey
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('All events cleared successfully');
+                    fetchEvents();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+                document.getElementById('delete-modal').style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred');
+                document.getElementById('delete-modal').style.display = 'none';
+            });
+        });
+        
+        // Close modal when clicking on X
+        document.querySelector('.close-modal').addEventListener('click', function() {
+            document.getElementById('delete-modal').style.display = 'none';
+        });
+        
+        // Show/hide from branch field based on event type
+        document.getElementById('event-type').addEventListener('change', function() {
+            const fromBranchGroup = document.getElementById('from-branch-group');
+            if (this.value === 'push') {
+                fromBranchGroup.style.display = 'none';
+            } else {
+                fromBranchGroup.style.display = 'block';
+            }
+        });
+        
+        // Simulate webhook event
+        document.getElementById('simulate-event').addEventListener('click', function() {
+            const eventType = document.getElementById('event-type').value;
+            const author = document.getElementById('author-name').value;
+            const toBranch = document.getElementById('to-branch').value;
+            const fromBranch = document.getElementById('from-branch').value;
+            
+            let payload;
+            
+            if (eventType === 'push') {
+                payload = {
+                    type: 'push',
+                    author: author,
+                    to_branch: toBranch
+                };
+            } else if (eventType === 'pull_request_opened') {
+                payload = {
+                    type: 'pull_request',
+                    action: 'opened',
+                    author: author,
+                    from_branch: fromBranch,
+                    to_branch: toBranch
+                };
+            } else if (eventType === 'pull_request_merged') {
+                payload = {
+                    type: 'pull_request',
+                    action: 'closed',
+                    merged: true,
+                    author: author,
+                    from_branch: fromBranch,
+                    to_branch: toBranch
+                };
+            }
+            
+            fetch('/api/simulate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Event simulated successfully');
+                    fetchEvents();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred');
+            });
+        });
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('delete-modal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+        
+        // Search functionality
+        document.getElementById('event-search').addEventListener('input', function() {
+            const searchQuery = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#events-table-body tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(searchQuery)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+        
+        // Initial fetch
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchEvents();
+        });
+    </script>
+</body>
+</html>
